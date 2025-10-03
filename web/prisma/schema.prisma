@@ -1,0 +1,174 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Application data models
+
+enum Role {
+  ADMIN
+  CUSTOMER
+}
+
+enum Difficulty {
+  EASY
+  MODERATE
+  CHALLENGING
+  DIFFICULT
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentStatus {
+  REQUIRES_ACTION
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  hashedPassword String
+  phone          String?
+  role           Role     @default(CUSTOMER)
+  imageUrl       String?
+  isActive       Boolean  @default(true)
+
+  bookings       Booking[]
+  orders         Order[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Tour {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
+  subtitle        String?
+  summary         String?
+  description     String
+  country         String
+  region          String?
+  durationDays    Int
+  difficulty      Difficulty
+  minAge          Int           @default(12)
+  maxGroupSize    Int?
+  priceCents      Int           // Base price per adult in cents
+  currency        String        @default("USD")
+  isActive        Boolean       @default(true)
+  isFeatured      Boolean       @default(false)
+  ratingAverage   Float         @default(0)
+  ratingCount     Int           @default(0)
+
+  images          TourImage[]
+  departures      Departure[]
+  bookings        Booking[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model TourImage {
+  id        String  @id @default(cuid())
+  tourId    String
+  url       String
+  alt       String?
+  width     Int?
+  height    Int?
+  position  Int      @default(0)
+
+  tour      Tour    @relation(fields: [tourId], references: [id], onDelete: Cascade)
+}
+
+model Departure {
+  id             String   @id @default(cuid())
+  tourId         String
+  startDate      DateTime
+  endDate        DateTime
+  slotsTotal     Int
+  slotsAvailable Int
+
+  tour           Tour     @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  bookings       Booking[]
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  userId          String
+  tourId          String
+  departureId     String
+  travelers       Int           @default(1)
+  priceCentsEach  Int
+  totalCents      Int
+  currency        String        @default("USD")
+  status          BookingStatus @default(PENDING)
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tour            Tour          @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  departure       Departure     @relation(fields: [departureId], references: [id], onDelete: Restrict)
+  order           Order?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Order {
+  id               String        @id @default(cuid())
+  userId           String
+  bookingId        String        @unique
+  status           OrderStatus   @default(PENDING)
+  totalCents       Int
+  currency         String        @default("USD")
+  paymentMethod    PaymentProvider?
+  stripeSessionId  String?
+  paypalOrderId    String?
+
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking          Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  payments         Payment[]
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model Payment {
+  id               String          @id @default(cuid())
+  orderId          String
+  provider         PaymentProvider
+  providerPaymentId String
+  amountCents      Int
+  currency         String          @default("USD")
+  status           PaymentStatus
+  payload          Json
+
+  order            Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime        @default(now())
+}
